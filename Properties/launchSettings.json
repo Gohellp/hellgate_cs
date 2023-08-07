@@ -1,0 +1,33 @@
+{
+  "profiles": {
+    "hellgate": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "hellgateToken": "ODIwNTc2NjM5MDYxNzIxMTI4.Gjgxct.9W4qMZXsNKKtDTrUtVYI_9OKnxKUEOL6MVk5_s",
+        "voiceCreateId": "991660306092785684",
+        "nithGuildId": "991658690434318407",
+        "botChannelId": "991661277015457912"
+      }
+    },
+    "hellgateTest": {
+      "commandName": "Project",
+      "commandLineArgs": "-t",
+      "environmentVariables": {
+        "hellgateToken": "MTA5NzA3NDk4MDkxMjYzMTgyOA.GDyri1.3uF-9ntzcrcBc3W4Rkh_fHoL6rztRownzuZd50",
+        "voiceCreateId": "1136401312225955941",
+        "nithGuildId": "991658690434318407",
+        "botChannelId": "991661277015457912"
+      }
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {
+        "botChannleId": "991661277015457912",
+        "hellgateToken": "ODIwNTc2NjM5MDYxNzIxMTI4.Gjgxct.9W4qMZXsNKKtDTrUtVYI_9OKnxKUEOL6MVk5_s",
+        "nithGuildId": "991658690434318407",
+        "voiceCreateId": "991660306092785684"
+      },
+      "distributionName": ""
+    }
+  }
+}
