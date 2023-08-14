@@ -74,19 +74,21 @@ namespace hellgate.Services
             // Create a number to track where the prefix ends and the command begins
             int argPos = 0;
 
-            GuildSettings guildSettings = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == messageParam.Reference.GuildId.ToString()) ?? _globalSettings;
-            List<UserSetting>? globalBans = _globalSettings.Users?.Where(us => (us.UserId == messageParam.Author.Id.ToString() && us.AllowUseCommands == false)).ToList();
-            List<UserSetting>? guildBans = guildSettings.Users?.Where(us => (us.UserId == messageParam.Author.Id.ToString() && us.AllowUseCommands == false)).ToList();
-
             // Determine if the message is a command based on the prefix and make sure no bots trigger commands
             if (!(message.HasCharPrefix('+', ref argPos) ||
-                message.HasMentionPrefix(_discord.CurrentUser, ref argPos) ||
-                message.HasStringPrefix(guildSettings.TextCommandPrefix, ref argPos)) ||
+                message.HasMentionPrefix(_discord.CurrentUser, ref argPos)) ||
                 message.Author.IsBot)
                 return;
 
             // Create a WebSocket-based command context based on the message
             var context = new SocketCommandContext(_discord, message);
+
+            GuildSettings guildSettings = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == context.Guild.Id.ToString()) ?? _globalSettings;
+            List<UserSetting>? globalBans = _globalSettings.Users?.Where(us => (us.UserId == context.User.Id.ToString() && us.AllowUseCommands == false)).ToList();
+            List<UserSetting>? guildBans = guildSettings.Users?.Where(us => (us.UserId == context.User.Id.ToString() && us.AllowUseCommands == false)).ToList();
+
+            if (!message.HasStringPrefix(guildSettings.TextCommandPrefix, ref argPos))
+                return;
 
             if (guildSettings.OnlyInBotChannel && context.Channel.Id != _botChannel!.Id)
             {
