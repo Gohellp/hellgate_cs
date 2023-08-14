@@ -29,13 +29,10 @@ using IHost host = Host.CreateDefaultBuilder(args)
             GuildSettings? GlobalSettings = db.GuildsSettings.FirstOrDefault(g => g.ServerId == "0");
             if (GlobalSettings == null)
             {
-                Console.WriteLine("Well...");
                 GlobalSettings = new GuildSettings() { ServerId = "0" };
                 db.GuildsSettings.Add(GlobalSettings);
                 db.SaveChanges();
             }
-
-            Console.WriteLine(GlobalSettings.ServerId);
             services.AddSingleton(GlobalSettings);
         }
 

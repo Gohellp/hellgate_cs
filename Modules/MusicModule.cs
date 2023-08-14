@@ -1,12 +1,11 @@
-﻿using Discord.Commands;
+﻿using Discord;
+using Discord.Commands;
 using Lavalink4NET;
 using Lavalink4NET.Rest;
 using Lavalink4NET.Player;
-using System.Text.RegularExpressions;
-using Discord;
-using hellgate.Contexts;
 using hellgate.Models;
-using Discord.WebSocket;
+using hellgate.Contexts;
+using System.Text.RegularExpressions;
 
 namespace hellgate.Modules
 {
@@ -18,7 +17,11 @@ namespace hellgate.Modules
 		private readonly GuildSettings _globalSettings;
         private readonly GuildsSettingsContext _guildsSettingsContext;
 
-		public MusicModule(IAudioService audioService, GuildsSettingsContext guildsSettingsContext, GuildSettings globalSettings, VoiceContext voiceContext)
+		public MusicModule(
+            IAudioService audioService,
+            GuildsSettingsContext guildsSettingsContext,
+            GuildSettings globalSettings,
+            VoiceContext voiceContext)
 		{
 			_voiceContext = voiceContext;
 			_globalSettings = globalSettings;
@@ -48,7 +51,7 @@ namespace hellgate.Modules
 					await ReplyAsync(embed: TrowError("Player isn't paused.\nIf you wand add a track, commant must include youtube url","MusicModule/PlayAsync/ResumePlayer"));
 				}
 				await player.ResumeAsync();
-				await ReplyAsync(embed: SuccessEmbed(""));
+				await Context.Message.ReplyAsync(embed: SuccessEmbed("Player resumed"));
 				return;
 			}
 
@@ -70,18 +73,18 @@ namespace hellgate.Modules
 					return;
 				}
 
-				track.Context = Context.User.Id;
+				track.Context = Context.User;
 
 				int position = await player.PlayAsync(track, enqueue: true);
-				await player.SetVolumeAsync(guildSettings.PlayerVolume);
+				await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f).ConfigureAwait(false);
 
 				if (position == 0)
 				{
-					await ReplyAsync("🔈 Playing: " + track.Uri);//TODO: Change this to embed
+					await Context.Message.ReplyAsync("🔈 Playing: " + track.Uri);//TODO: Change this to embed
 				}
 				else
 				{
-					await ReplyAsync("🔈 Added to queue: " + track.Uri);//TODO: Change this to embed
+					await Context.Message.ReplyAsync("🔈 Added to queue: " + track.Uri);//TODO: Change this to embed
 				}
 			}
 			else
@@ -105,27 +108,27 @@ namespace hellgate.Modules
 			if (player.State == PlayerState.Paused)
 			{
 				await player.ResumeAsync();
-				await ReplyAsync(embed: SuccessEmbed("Player unpaused!"));
+				await Context.Message.ReplyAsync(embed: SuccessEmbed("Player unpaused!"));
 			}
 
 			if(player.CurrentTrack == null)
 			{
-				await ReplyAsync(
-					embed: TrowError("Nothing playing!", "MusicModule/PauseAsync/PlayingCheck")
-				);
+				await Context.Message.ReplyAsync(embed: TrowError("Nothing playing!", "MusicModule/PauseAsync/PlayingCheck"));
 			}
 
 			await player.PauseAsync().ConfigureAwait(false);
 
-			await ReplyAsync(embed: SuccessEmbed("Player paused"));
+			await Context.Message.ReplyAsync(embed: SuccessEmbed("Player paused"));
 		}
 
 		[Command("queue")]
 		[Alias("q", "list", "список", "с")]
-		[Summary("Sends queue")]
-		public async Task SendQueueAsync()
-		{
-			QueuedLavalinkPlayer player = await GetPlayerAsync();
+		[Summary("Sends queue")]//Placeholder
+        public async Task SendQueueAsync()
+        {
+            await Placeholder();
+			return;
+            var player = await GetPlayerAsync();
 
 			if (player == null)
 			{
@@ -139,8 +142,8 @@ namespace hellgate.Modules
 
 		[Command("skip")]
 		[Alias("s", "пропустить", "п")]
-		[Summary("Skip n tracks")]//Add Usercheck
-		public async Task SkipAsync([Summary("count to skip")]int count = 1)
+		[Summary("Skip n tracks")]
+        public async Task SkipAsync()
 		{
 			VoteLavalinkPlayer player = await GetPlayerAsync();
 
@@ -149,13 +152,57 @@ namespace hellgate.Modules
 				return;
 			}
 
-			await player.SkipAsync(count);
+			if(player.CurrentTrack == null)
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("None to skip","MusicModule/Skip/CurrentTrackIsNull"));
+				return;
+			}
+
+			IUser? user = player.CurrentTrack.Context as IUser;
+
+			if(user == null)
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("I forgor track owner, lol", "MusicModule/Skip/CurrentTrackContextIsNull"));
+				return;
+			}
+
+			if(user.Id != Context.User.Id)
+			{
+				await player.VoteAsync(user.Id);
+				await Context.Message.ReplyAsync(embed:SuccessEmbed("You success vote for the skip"));
+				return;
+			}
+
+            EmbedBuilder embed = new EmbedBuilder()
+            {
+                Title = "Success",
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = Context.Client.CurrentUser.Username,
+                    IconUrl = Context.Client.CurrentUser.GetAvatarUrl(),
+                },
+				Description = "You skipped the track"
+            };
+
+			await player.SkipAsync();
+
+			var _player = await GetPlayerAsync();
+
+            if (_player.CurrentTrack != null)
+            {
+                embed.AddField(
+                    "Now play:",
+                    $"{_player.CurrentTrack.Author} - {_player.CurrentTrack.SourceName}\nAdded by {user.Username}");
+                
+			}
+
+            await Context.Message.ReplyAsync(embed: embed.Build());
 		}
 
 		[Command("remove")]
 		[Alias("rm","del", "delete", "удалить", "у")]
 		[Summary("Remove the track")]
-		public async Task RemoveAsync([Summary("Index of track")]int index)
+        public async Task RemoveAsync([Summary("Index of track")]int index)
 		{
 			var player = await GetPlayerAsync();
 
@@ -169,7 +216,7 @@ namespace hellgate.Modules
 
 			if(trackToRemove == null)
 			{
-				await ReplyAsync(embed:TrowError("I can't find this track","MusicModule/Remove"));
+				await Context.Message.ReplyAsync(embed:TrowError("I can't find this track","MusicModule/Remove"));
 				return;
 			}
 
@@ -177,19 +224,19 @@ namespace hellgate.Modules
 
 			if(voiceChannel == null)
 			{
-				await ReplyAsync(embed:TrowError("I can't find VoiceInfo","MusicModule/RemoveAsync/line_176"));
+				await Context.Message.ReplyAsync(embed:TrowError("I can't find VoiceInfo","MusicModule/RemoveAsync/line_176"));
 				return;
 			}
 
 			if (trackToRemove.Context!= (object)Context.User.Id || voiceChannel.OwnerId==Context.User.Id.ToString())
             {
-				await ReplyAsync(embed:TrowError("You can't remove this track", "MusicModule/RemoveAsync"));
+				await Context.Message.ReplyAsync(embed:TrowError("You can't remove this track", "MusicModule/RemoveAsync"));
 				return;
 			}
 
 			player.Queue.Remove(trackToRemove);
 
-			await ReplyAsync(embed:SuccessEmbed("Track "+trackToRemove.Author+" - "+trackToRemove.Title+" was removed"));
+			await Context.Message.ReplyAsync(embed:SuccessEmbed("Track "+trackToRemove.Author+" - "+trackToRemove.Title+" was removed"));
 			
 		}
 
@@ -197,10 +244,46 @@ namespace hellgate.Modules
 		[Alias("np", "track", "song", "проигрывается", "песня", "трек")]
 		[Summary("Sends track info")]
 		public async Task NowPlayingAsync()
-		{
+        {
+			var player = await GetPlayerAsync();
+			if (player == null)
+			{
+				return;
+			}
 
-			await Task.CompletedTask;
-		}
+			LavalinkTrack? track = player.CurrentTrack;
+
+			if(track == null || player.State is PlayerState.NotPlaying or PlayerState.Paused)
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("Nothing playing now", "MusicModule/NowPlayingAsync/CurrentTrackIsNul"));
+				return;
+			}
+
+			IUser? owner = (IUser?)track.Context;
+
+			if (owner == null)
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("I forgor track owner, lol", "MusicModule/Skip/CurrentTrackContextIsNull"));
+				return;
+			}
+
+			EmbedBuilder embed = new EmbedBuilder()
+			{
+                Title = "Information",
+                Color = new Color(0, 255, 255),
+                Author = new EmbedAuthorBuilder()
+                {
+                    Name = Context.Client.CurrentUser.Username,
+                    IconUrl = Context.Client.CurrentUser.GetAvatarUrl()
+                }
+            };
+			embed.AddField(
+                    "Now play:",
+                    $"{track.Author} - {track.SourceName}\nAdded by {owner.Username}");
+            embed.Url = track.Uri!.ToString();
+
+            await Context.Message.ReplyAsync(embed:embed.Build());
+        }
 
 		[Command("stop")]
 		[Alias("leave", "die", "disconnect", "стоп", "умри", "уйди")]
@@ -215,9 +298,47 @@ namespace hellgate.Modules
 			}
 
 			await player.StopAsync(true);
-			await ReplyAsync("Disconnected.");
+			await ReplyAsync(embed:SuccessEmbed("Disconnected"));
 		}
 
+		[Command("loop")]
+		[Alias("повторять","повтор")]
+		[Summary("Loop playing")]//Placeholder
+        public async Task LoopAsync([Summary("Loop mode")]string mode = "all")
+        {
+            await Placeholder();
+			return;
+
+			//Изменить под строку/массив
+            if (mode is not "all" and not "one" and not "off")
+			{
+
+			}
+        }
+
+		[Command("volume")]
+		[Alias("v","громкость","г")]
+		[Summary("Change the volume of player")]
+		public async Task ChangeVolumeAsync([Summary("Volume level")]int volume = 85)
+        {
+            if (volume is > 100 or < 0)
+            {
+                await Context.Message.ReplyAsync(embed: TrowError("Value out of bounds", "MusicModule/VolumeAsync/OutOfBounds"));
+                return;
+            }
+
+            var player = await GetPlayerAsync();
+
+			if(player == null)
+			{
+				return;
+			}
+
+			await player.SetVolumeAsync(volume / 100f);
+			await Context.Message.ReplyAsync(embed:SuccessEmbed("Volume changed to "+ volume));
+        }
+
+		//Some Private Functions
 		private async ValueTask<VoteLavalinkPlayer> GetPlayerAsync(bool connectToVoiceChannel = true)
 		{
 			var player = _audioService.GetPlayer<VoteLavalinkPlayer>(Context.Guild.Id);
@@ -297,6 +418,11 @@ namespace hellgate.Modules
 			};
 
 			return embed.Build();
+		}
+
+		private async Task<IUserMessage> Placeholder()
+		{
+			return await Context.Message.ReplyAsync(embed: InformationEmbed("This command is not finished yet")); ;
 		}
 
 		/*private bool AuthorizeCheck(QueuedLavalinkPlayer Player)
