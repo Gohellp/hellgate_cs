@@ -6,6 +6,7 @@ using Lavalink4NET.Player;
 using hellgate.Models;
 using hellgate.Contexts;
 using System.Text.RegularExpressions;
+using Discord.WebSocket;
 
 namespace hellgate.Modules
 {
@@ -14,17 +15,14 @@ namespace hellgate.Modules
 	{
         private readonly VoiceContext _voiceContext;
 		private readonly IAudioService _audioService;
-		private readonly GuildSettings _globalSettings;
         private readonly GuildsSettingsContext _guildsSettingsContext;
 
 		public MusicModule(
             IAudioService audioService,
             GuildsSettingsContext guildsSettingsContext,
-            GuildSettings globalSettings,
             VoiceContext voiceContext)
 		{
 			_voiceContext = voiceContext;
-			_globalSettings = globalSettings;
 			_guildsSettingsContext = guildsSettingsContext;
 			_audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
 		}
@@ -36,7 +34,9 @@ namespace hellgate.Modules
 		{
 			LavalinkTrack? track = null;
 			var player = await GetPlayerAsync();
-			GuildSettings guildSettings = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == Context.Guild.Id.ToString())??_globalSettings;
+			GuildSettings guildSettings =
+				_guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == Context.Guild.Id.ToString())
+				?? _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs=>gs.ServerId=="0")!;
 
 			if (player == null)
 			{
@@ -75,7 +75,13 @@ namespace hellgate.Modules
 
 				track.Context = Context.User;
 
-				int position = await player.PlayAsync(track, enqueue: true);
+				PlayerLoopMode loopMode = PlayerLoopMode.None;
+
+				if (guildSettings.DefaultLoopQueue)
+					loopMode = PlayerLoopMode.Queue;
+				player.LoopMode = loopMode;
+
+                int position = await player.PlayAsync(track, enqueue: true);
 				await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f).ConfigureAwait(false);
 
 				if (position == 0)
@@ -123,21 +129,42 @@ namespace hellgate.Modules
 
 		[Command("queue")]
 		[Alias("q", "list", "список", "с")]
-		[Summary("Sends queue")]//Placeholder
+		[Summary("Sends queue")]
         public async Task SendQueueAsync()
         {
-            await Placeholder();
-			return;
             var player = await GetPlayerAsync();
 
 			if (player == null)
 			{
 				return;
 			}
+            if (player.CurrentTrack == null)
+            {
+                await Context.Message.ReplyAsync(embed: TrowError("Queue is empty", "MusicModule/Skip/CurrentTrackIsNull"));
+                return;
+            }
+
+            string queue = "";
+
+			int currentPos = player.Queue.IndexOf(player.CurrentTrack!);
 
 
-
-			await Task.CompletedTask;
+			for (int i = currentPos; i <= player.Queue.Count&&i < 10+currentPos; i++)
+			{
+				LavalinkTrack track = player.Queue[i];
+				queue+= $"`{i}` {track.Author} - {track.Title} | Added by {((SocketUser)track.Context!).GlobalName}\n";
+			}
+			EmbedBuilder embed = new EmbedBuilder()
+			{
+				Title = "Queue for " + Context.Guild.GetVoiceChannel(id: (ulong)player.VoiceChannelId!).Name,
+				Author = new EmbedAuthorBuilder()
+				{
+					Name = Context.Client.CurrentUser.Username,
+					IconUrl = Context.Client.CurrentUser.GetAvatarUrl(),
+				},
+				Description = queue
+			};
+			await Context.Message.ReplyAsync(embed:embed.Build());
 		}
 
 		[Command("skip")]
@@ -192,7 +219,7 @@ namespace hellgate.Modules
             {
                 embed.AddField(
                     "Now play:",
-                    $"{_player.CurrentTrack.Author} - {_player.CurrentTrack.SourceName}\nAdded by {user.Username}");
+                    $"{_player.CurrentTrack.Author} - {_player.CurrentTrack.Title}\nAdded by {user.Username}");
                 
 			}
 
@@ -279,7 +306,7 @@ namespace hellgate.Modules
             };
 			embed.AddField(
                     "Now play:",
-                    $"{track.Author} - {track.SourceName}\nAdded by {owner.Username}");
+                    $"{track.Author} - {track.Title}\nAdded by {owner.Username}");
             embed.Url = track.Uri!.ToString();
 
             await Context.Message.ReplyAsync(embed:embed.Build());
@@ -304,16 +331,48 @@ namespace hellgate.Modules
 		[Command("loop")]
 		[Alias("повторять","повтор")]
 		[Summary("Loop playing")]//Placeholder
-        public async Task LoopAsync([Summary("Loop mode")]string mode = "all")
+        public async Task LoopAsync([Summary("Loop mode")]string mode = "none")
         {
-            await Placeholder();
-			return;
+			GuildSettings? guild = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs=>gs.ServerId==Context.Guild.Id.ToString());
+
+			if (guild == null)
+			{
+				guild = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs=>gs.ServerId=="0")!;
+				guild.ServerId=Context.Guild.Id.ToString();
+				_guildsSettingsContext.GuildsSettings.Add(guild);
+				_guildsSettingsContext.SaveChanges();
+			}
+
+			SocketGuildUser user = (SocketGuildUser)Context.User;
+
+			if(guild.DJRoleId!=String.Empty && user.Roles.FirstOrDefault(r=>r.Id==Convert.ToUInt64(guild.DJRoleId))==null)
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("You do not have permission to use this command", "MusicModule/LoopAsync"));
+				return;
+			}
+
+			var player = await GetPlayerAsync();
 
 			//Изменить под строку/массив
-            if (mode is not "all" and not "one" and not "off")
+            if(mode is "one" or "один")
 			{
-
+				player.LoopMode = PlayerLoopMode.Track;
 			}
+			else if(mode is "queue" or "all" or "все" or "всё" or "список")
+			{
+				player.LoopMode= PlayerLoopMode.Queue;
+			}
+			else if(mode is "node" or "off" or "выкл" or "ничего")
+			{
+				player.LoopMode = PlayerLoopMode.None;
+			}
+			else
+			{
+				await Context.Message.ReplyAsync(embed:TrowError("This argument is not supported", "MusicModule/LoopAsync"));
+				return;
+			}
+
+			await Context.Message.ReplyAsync(embed:SuccessEmbed("Loop mode sets to "+mode));
         }
 
 		[Command("volume")]
@@ -419,15 +478,5 @@ namespace hellgate.Modules
 
 			return embed.Build();
 		}
-
-		private async Task<IUserMessage> Placeholder()
-		{
-			return await Context.Message.ReplyAsync(embed: InformationEmbed("This command is not finished yet")); ;
-		}
-
-		/*private bool AuthorizeCheck(QueuedLavalinkPlayer Player)
-		{
-			
-		}*/
 	}
 }

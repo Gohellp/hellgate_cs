@@ -22,19 +22,7 @@ using IHost host = Host.CreateDefaultBuilder(args)
     })  
     .ConfigureServices(services =>
     {
-        using (var db = new GuildsSettingsContext())
-        {
-            db.Database.Migrate();
-
-            GuildSettings? GlobalSettings = db.GuildsSettings.FirstOrDefault(g => g.ServerId == "0");
-            if (GlobalSettings == null)
-            {
-                GlobalSettings = new GuildSettings() { ServerId = "0" };
-                db.GuildsSettings.Add(GlobalSettings);
-                db.SaveChanges();
-            }
-            services.AddSingleton(GlobalSettings);
-        }
+        
 
         services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig()
         {
@@ -73,6 +61,18 @@ using IHost host = Host.CreateDefaultBuilder(args)
 using (var db = new VoiceContext())
 {
     db.Database.Migrate();
+}
+using (var db = new GuildsSettingsContext())
+{
+    db.Database.Migrate();
+
+    var global = db.GuildsSettings.FirstOrDefault(gs=>gs.ServerId == "0");
+    if (global == null)
+    {
+        global = new GuildSettings { ServerId = "0" };
+        db.GuildsSettings.Add(global);
+        db.SaveChanges();
+    }
 }
 
 await host.RunAsync();
