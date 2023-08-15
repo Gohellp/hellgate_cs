@@ -11,14 +11,15 @@ namespace hellgate.Services
     public class DiscordStartupService : IHostedService
     {
         private readonly IConfiguration _config;
-        private readonly GuildSettings _globalSettings;
         private readonly DiscordSocketClient _discord;
         private readonly ILogger<DiscordSocketClient> _logger;
         private readonly GuildsSettingsContext _guildsSettingsContext;
 
+
+        private GuildSettings? _globalSettings;
+
         public DiscordStartupService(
             IConfiguration config,
-            GuildSettings guildSettings,
             DiscordSocketClient discord,
             ILogger<DiscordSocketClient> logger,
             GuildsSettingsContext guildsSettingsContext)
@@ -27,7 +28,6 @@ namespace hellgate.Services
             _config = config;
             _logger = logger;
             _guildsSettingsContext = guildsSettingsContext;
-            _globalSettings = guildSettings;
 
             _discord.Log += msg => LogHelper.OnLogAsync(_logger, msg);
             _discord.JoinedGuild += OnJoinedGuild;
@@ -35,6 +35,17 @@ namespace hellgate.Services
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            _globalSettings = _guildsSettingsContext.GuildsSettings.Find("0");
+            if (_globalSettings == null)
+            {
+                _globalSettings = new GuildSettings()
+                {
+                    ServerId = "0"
+                };
+                _guildsSettingsContext.Add(_globalSettings);
+                _guildsSettingsContext.SaveChanges();
+            }
+
             await _discord.LoginAsync(TokenType.Bot, _config["hellgateToken"]);
             await _discord.StartAsync();
             await _discord.SetGameAsync("C# v1.0.5, bitches!");
@@ -52,7 +63,8 @@ namespace hellgate.Services
 
             if (newGuild == null)
             {
-                newGuild = _globalSettings;
+                newGuild = _globalSettings!;
+                newGuild.ServerId = guild.Id.ToString();
                 _guildsSettingsContext.GuildsSettings.Add(newGuild);
                 _guildsSettingsContext.SaveChanges();
             }

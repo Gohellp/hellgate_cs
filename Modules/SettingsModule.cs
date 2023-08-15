@@ -1,26 +1,23 @@
 ﻿using Discord;
 using Discord.Interactions;
-using Discord.WebSocket;
 using hellgate.Contexts;
 using hellgate.Models;
-using Lavalink4NET;
 using System.Data.Entity;
-using static hellgate.Modules.GuildSettingsModule;
 
 namespace hellgate.Modules
 {
     [Group("settings","Change settings params")]
-    public class GuildSettingsModule : InteractionModuleBase
+    public class SettingsModule : InteractionModuleBase
     {
 
         [EnabledInDm(false)]
         [RequireContext(ContextType.Guild)]
         [Group("guild", "Change guild settings params")]
-        public class GuildSetting : InteractionModuleBase
+        public class GuildSettingsModule : InteractionModuleBase
         {
             private readonly GuildsSettingsContext _guildsSettingsContext;
 
-            public GuildSetting(GuildsSettingsContext guildsSettingsContext)
+            public GuildSettingsModule(GuildsSettingsContext guildsSettingsContext)
             {
                 _guildsSettingsContext = guildsSettingsContext;
             }
@@ -37,6 +34,7 @@ namespace hellgate.Modules
                 await RespondAsync(embed: SuccessEmbed($"DJRole value changed to {djRole.Name} {Format.Spoiler(djRole.Id.ToString())}", Context), ephemeral:true);
             }
 
+            [RequireUserPermission(GuildPermission.ManageChannels)]
             [SlashCommand("set_volume", "Change default volume")]
             public async Task SetGlobalVolumeAsync(int volume)
             {
@@ -67,18 +65,97 @@ namespace hellgate.Modules
                 await RespondAsync(embed: SuccessEmbed("Prefix changed to "+prefix,Context));
             }
 
+            [RequireUserPermission(GuildPermission.ManageChannels)]
+            [SlashCommand("set_botchannel", "Sets the bots channel")]
+            public async Task SetBotChannelAsync(ITextChannel channel)
+            {
+                GuildSettings guild = GuildCheckAndGet();
+
+                OverwritePermissions? perms = channel.GetPermissionOverwrite(Context.Client.CurrentUser);
+
+                if (perms == null)
+                {
+                    perms = channel.GetPermissionOverwrite(channel.Guild.EveryoneRole);
+                }
+                if(perms!=null && perms.Value.ViewChannel == PermValue.Deny)
+                {
+                    await RespondAsync(embed:TrowError("I cant read this channel", "SettingsModule/GuildSettingsModule/SetBotChannelAsync", Context));
+                    return;
+                }
+
+                guild.BotChannelId = channel.Id.ToString();
+                _guildsSettingsContext.SaveChanges();
+
+                await RespondAsync(embed:SuccessEmbed("BotChannelId setts to "+guild.BotChannelId,Context));
+            }
+
+            [RequireUserPermission(GuildPermission.ManageChannels)]
+            [SlashCommand("set_newschannel", "Sets the news channel")]
+            public async Task SetNewsChannelAsync(ITextChannel channel)
+            {
+                GuildSettings guildSettings = GuildCheckAndGet();
+                OverwritePermissions? perms = channel.GetPermissionOverwrite(Context.Client.CurrentUser);
+
+                if (perms == null)
+                {
+                    perms = channel.GetPermissionOverwrite(channel.Guild.EveryoneRole);
+                }
+                if (perms != null && perms.Value.ViewChannel == PermValue.Deny)
+                {
+                    await RespondAsync(embed: TrowError("I cant read this channel", "SettingsModule/GuildSettingsModule/SetBotChannelAsync", Context));
+                    return;
+                }
+
+                guildSettings.NewsChannelId = channel.Id.ToString();
+                _guildsSettingsContext.SaveChanges();
+
+                await RespondAsync(embed: SuccessEmbed("NewsChannelId setts to " + guildSettings.BotChannelId, Context));
+            }
+
+            [RequireUserPermission(GuildPermission.ManageGuild)]
+            [SlashCommand("change_command_perm", "Change the permission to use the command")]
+            public async Task ChangeCommandPermissionAsync(IUser? user = null, string? userId = null)
+            {
+                string? _userId = null;
+
+                if (userId != null && user == null)
+                    _userId = userId;
+                else if (user != null && userId == null)
+                    _userId = user.Id.ToString();
+                else if (userId == null && user == null)
+                {
+                    await RespondAsync(embed: TrowError("You must specify one of the values", "SettingsModule/GlobalSettings/ChangeCommandPermissionAsync", Context));
+                    return;
+                }
+                else
+                {
+                    await RespondAsync(embed: TrowError("You must specify ONE of the values", "SettingsModule/GlobalSettings/ChangeCommandPermissionAsync", Context));
+                    return;
+                }
+
+                GuildSettings guild = GuildCheckAndGet();
+
+                UserSetting _user = guild.Users.FirstOrDefault(us => us.UserId == _userId) ?? new UserSetting() {UserId = _userId };
+
+                _user.AllowUseCommands = !_user.AllowUseCommands;
+                guild.Users.Add(_user);
+                _guildsSettingsContext.SaveChanges();
+
+                await RespondAsync(embed: SuccessEmbed($"You sets AllowUseCommands to {_user.AllowUseCommands} for {MentionUtils.MentionUser(Convert.ToUInt64(_userId))}", Context), ephemeral: true);
+            }
+
 
             private GuildSettings GuildCheckAndGet()
             {
-                GuildSettings? _guild = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs=>gs.ServerId==Context.Guild.Id.ToString());
-
+                GuildSettings? _guild = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == Context.Guild.Id.ToString());
                 if(_guild == null)
                 {
-                    _guild = _guildsSettingsContext.GuildsSettings.Find("0")??throw new ArgumentNullException(nameof(_guild)); ;
+                    _guild = _guildsSettingsContext.GuildsSettings.Include(gs => gs.Users).Where(gs=>gs.ServerId =="0").First();
                     _guild!.ServerId = Context.Guild.Id.ToString();
                     _guildsSettingsContext.Add(_guild);
                     _guildsSettingsContext.SaveChanges();
                 }
+                _guildsSettingsContext.UserSettings.Where(us => us.GuildId == _guild.ServerId).Load();
 
                 return _guild;
             }
@@ -87,15 +164,15 @@ namespace hellgate.Modules
 
         [RequireOwner]
         [Group("global", "Change global settings params")]
-        public class GlobalSettings : InteractionModuleBase
+        public class GlobalSettingsModule : InteractionModuleBase
         {
             private GuildSettings _globalSettings;
             private readonly GuildsSettingsContext _guildsSettingsContext;
 
-            public GlobalSettings(GuildsSettingsContext guildsSettingsContext, GuildSettings globalSettings)
+            public GlobalSettingsModule(GuildsSettingsContext guildsSettingsContext)
             {
                 _guildsSettingsContext = guildsSettingsContext;
-                _globalSettings = globalSettings;
+                _globalSettings = _guildsSettingsContext.GuildsSettings.Include(gs => gs.Users).Where(gs => gs.ServerId == "0").FirstOrDefault() ?? throw new ArgumentNullException(nameof(_globalSettings));
             }
 
 
@@ -112,6 +189,46 @@ namespace hellgate.Modules
                 _guildsSettingsContext.SaveChanges();
 
                 await RespondAsync(embed: SuccessEmbed("Default value changed to " + volume, Context), ephemeral: true);
+            }
+
+            [SlashCommand("change_command_perm", "Change the permission to use the command")]
+            public async Task ChangeCommandPermissionAsync(IUser? user=null, string? userId=null)
+            {
+                string? _userId = null;
+
+                if (userId != null&&user==null)
+                    _userId = userId;
+                else if(user!=null&&userId==null)
+                    _userId = user.Id.ToString();
+                else if(userId == null && user == null)
+                {
+                    await RespondAsync(embed: TrowError("You must specify one of the values", "SettingsModule/GlobalSettings/ChangeCommandPermissionAsync", Context));
+                    return;
+                }
+                else
+                {
+                    await RespondAsync(embed: TrowError("You must specify ONE of the values", "SettingsModule/GlobalSettings/ChangeCommandPermissionAsync", Context));
+                    return;
+                }
+                
+                UserSetting? _user = _globalSettings.Users.FirstOrDefault(us=>us.UserId==_userId);
+
+                if(_user == null)
+                {
+                    _user = new UserSetting()
+                    {
+                        UserId = _userId,
+                        Guild = _globalSettings,
+                        GuildId = "0"
+                    };
+                    _guildsSettingsContext.UserSettings.Add(_user);
+                    _guildsSettingsContext.SaveChanges();
+                }
+
+                _user.AllowUseCommands = !_user.AllowUseCommands;
+                _guildsSettingsContext.SaveChanges();
+
+                await RespondAsync(embed:SuccessEmbed($"You sets AllowUseCommands to {_user.AllowUseCommands} for {MentionUtils.MentionUser(Convert.ToUInt64(_userId))}", Context), ephemeral:true);
             }
 
         }

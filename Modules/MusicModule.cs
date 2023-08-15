@@ -6,6 +6,7 @@ using Lavalink4NET.Player;
 using hellgate.Models;
 using hellgate.Contexts;
 using System.Text.RegularExpressions;
+using Discord.WebSocket;
 
 namespace hellgate.Modules
 {
@@ -14,17 +15,14 @@ namespace hellgate.Modules
 	{
         private readonly VoiceContext _voiceContext;
 		private readonly IAudioService _audioService;
-		private readonly GuildSettings _globalSettings;
         private readonly GuildsSettingsContext _guildsSettingsContext;
 
 		public MusicModule(
             IAudioService audioService,
             GuildsSettingsContext guildsSettingsContext,
-            GuildSettings globalSettings,
             VoiceContext voiceContext)
 		{
 			_voiceContext = voiceContext;
-			_globalSettings = globalSettings;
 			_guildsSettingsContext = guildsSettingsContext;
 			_audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
 		}
@@ -36,7 +34,9 @@ namespace hellgate.Modules
 		{
 			LavalinkTrack? track = null;
 			var player = await GetPlayerAsync();
-			GuildSettings guildSettings = _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == Context.Guild.Id.ToString())??_globalSettings;
+			GuildSettings guildSettings =
+				_guildsSettingsContext.GuildsSettings.FirstOrDefault(gs => gs.ServerId == Context.Guild.Id.ToString())
+				?? _guildsSettingsContext.GuildsSettings.FirstOrDefault(gs=>gs.ServerId=="0")!;
 
 			if (player == null)
 			{
@@ -123,19 +123,41 @@ namespace hellgate.Modules
 
 		[Command("queue")]
 		[Alias("q", "list", "список", "с")]
-		[Summary("Sends queue")]//Placeholder
+		[Summary("Sends queue")]
         public async Task SendQueueAsync()
         {
-            await Placeholder();
-			return;
             var player = await GetPlayerAsync();
 
 			if (player == null)
 			{
 				return;
 			}
+            if (player.CurrentTrack == null)
+            {
+                await Context.Message.ReplyAsync(embed: TrowError("Queue is empty", "MusicModule/Skip/CurrentTrackIsNull"));
+                return;
+            }
 
+            string queue = "";
 
+			int currentPos = player.Queue.IndexOf(player.CurrentTrack!);
+
+			for (int i = currentPos; i < player.Queue.Count&&i < 10+currentPos; i++)
+			{
+				LavalinkTrack track = player.Queue[i];
+				queue+= $"`{i}`{track.Author} - {track.SourceName} | Added by {((SocketUser)track.Context!).GlobalName}\n";
+			}
+			EmbedBuilder embed = new EmbedBuilder()
+			{
+				Title = "Queue for " + Context.Guild.GetVoiceChannel(id: (ulong)player.VoiceChannelId!).Name,
+				Author = new EmbedAuthorBuilder()
+				{
+					Name = Context.Client.CurrentUser.Username,
+					IconUrl = Context.Client.CurrentUser.GetAvatarUrl(),
+				},
+				Description = queue
+			};
+			await Context.Message.ReplyAsync(embed:embed.Build());
 
 			await Task.CompletedTask;
 		}
