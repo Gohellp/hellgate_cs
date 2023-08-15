@@ -13,11 +13,11 @@ namespace hellgate.Models
         [Index(IsUnique = false)]
         public required string UserId { get; set; }
 
-        public string GuildId { get; set; }
+        public string? GuildId { get; set; }
 
         public bool AllowUseCommands { get; set; } = true;
 
 
-        public GuildSettings Guild { get; set; }
+        public GuildSettings? Guild { get; set; }
     }
 }

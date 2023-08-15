@@ -48,7 +48,7 @@ namespace hellgate.Services
 
             await _discord.LoginAsync(TokenType.Bot, _config["hellgateToken"]);
             await _discord.StartAsync();
-            await _discord.SetGameAsync("C# v1.0.5, bitches!");
+            await _discord.SetGameAsync("C# v1.1.0, bitches!");
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

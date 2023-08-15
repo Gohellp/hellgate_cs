@@ -112,6 +112,19 @@ namespace hellgate.Modules
                 await RespondAsync(embed: SuccessEmbed("NewsChannelId setts to " + guildSettings.BotChannelId, Context));
             }
 
+            [RequireUserPermission(ChannelPermission.ManageChannels)]
+            [SlashCommand("change_loopqueue","")]
+            public async Task ChangeLoopQueueAsync()
+            {
+                GuildSettings guildSettings = GuildCheckAndGet();
+
+                guildSettings.DefaultLoopQueue = !guildSettings.DefaultLoopQueue;
+
+                _guildsSettingsContext.SaveChanges();
+
+                await RespondAsync(embed: SuccessEmbed($"You sets DefaultLoopQueue to {guildSettings.DefaultLoopQueue}", Context), ephemeral: true);
+            }
+
             [RequireUserPermission(GuildPermission.ManageGuild)]
             [SlashCommand("change_command_perm", "Change the permission to use the command")]
             public async Task ChangeCommandPermissionAsync(IUser? user = null, string? userId = null)
@@ -135,10 +148,14 @@ namespace hellgate.Modules
 
                 GuildSettings guild = GuildCheckAndGet();
 
-                UserSetting _user = guild.Users.FirstOrDefault(us => us.UserId == _userId) ?? new UserSetting() {UserId = _userId };
+                UserSetting? _user = guild.Users.FirstOrDefault(us => us.UserId == _userId);
+                if (_user == null)
+                {
+                    _user = new UserSetting() { UserId = _userId };
+                    guild.Users.Add(_user);
+                }
 
                 _user.AllowUseCommands = !_user.AllowUseCommands;
-                guild.Users.Add(_user);
                 _guildsSettingsContext.SaveChanges();
 
                 await RespondAsync(embed: SuccessEmbed($"You sets AllowUseCommands to {_user.AllowUseCommands} for {MentionUtils.MentionUser(Convert.ToUInt64(_userId))}", Context), ephemeral: true);
