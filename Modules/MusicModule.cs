@@ -158,8 +158,6 @@ namespace hellgate.Modules
 				Description = queue
 			};
 			await Context.Message.ReplyAsync(embed:embed.Build());
-
-			await Task.CompletedTask;
 		}
 
 		[Command("skip")]
@@ -301,7 +299,7 @@ namespace hellgate.Modules
             };
 			embed.AddField(
                     "Now play:",
-                    $"{track.Author} - {track.SourceName}\nAdded by {owner.Username}");
+                    $"{track.Author} - {track.Title}\nAdded by {owner.Username}");
             embed.Url = track.Uri!.ToString();
 
             await Context.Message.ReplyAsync(embed:embed.Build());

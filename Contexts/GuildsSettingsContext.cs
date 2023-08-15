@@ -13,14 +13,6 @@ namespace hellgate.Contexts
             Database.EnsureCreated();
         }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<UserSetting>()
-                .HasOne(us => us.Guild)
-                .WithMany(gs => gs.Users)
-                .HasForeignKey(us => us.GuildId);
-        }
-
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             optionsBuilder.UseSqlite("Filename=GuildSettings.db");
