@@ -113,7 +113,7 @@ namespace hellgate.Modules
             }
 
             [RequireUserPermission(ChannelPermission.ManageChannels)]
-            [SlashCommand("change_loopqueue","")]
+            [SlashCommand("change_loopqueue", "Change the loop queue mode default")]
             public async Task ChangeLoopQueueAsync()
             {
                 GuildSettings guildSettings = GuildCheckAndGet();
