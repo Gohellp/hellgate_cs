@@ -7,6 +7,7 @@ using hellgate.Models;
 using hellgate.Contexts;
 using System.Text.RegularExpressions;
 using Discord.WebSocket;
+using SpotifyToYoutube4Net;
 
 namespace hellgate.Modules
 {
@@ -55,48 +56,55 @@ namespace hellgate.Modules
 				return;
 			}
 
-			if(Regex.IsMatch(videoLink, @"(?:(?:.?youtu.?be)|(?:soundcloud))(?:.com)?", RegexOptions.Singleline))
+			if (Regex.IsMatch(videoLink, "soundcloud"))
 			{
-				if (Regex.IsMatch(videoLink, "soundcloud"))
-				{
-					track = await _audioService.GetTrackAsync(videoLink, SearchMode.SoundCloud);
-				}
-				else if (Regex.IsMatch(videoLink, @"(?:.?youtu.?be)(?:.com)"))
-				{
-					track = await _audioService.GetTrackAsync(videoLink, SearchMode.YouTube);
-				}
+				track = await _audioService.GetTrackAsync(videoLink, SearchMode.SoundCloud);
+			}
+			else if (Regex.IsMatch(videoLink, @"(?:.?youtu.?be)(?:.com)"))
+			{
+				track = await _audioService.GetTrackAsync(videoLink, SearchMode.YouTube);
+			}
+			else if (Regex.IsMatch(videoLink, @"^((?:https?:\/\/)?open\.spotify\.com\/track\/)?([\p{L}+:/\d.]+)(\?si\=[\p{L}+:/\d.]+)?"))
+			{
+				var Converter = new SpotifyToYoutube("AIzaSyDXwM8TYyshxpd-a_-n35YHGvAftW0ddio", "c4929afbe8f44f789e6c565c9ba2bd6f", "c3c7633841da4194a6fd9ded05c536bc");
 
-				
-				if (track == null)
-				{
-					await ReplyAsync("😖 No results.");//TODO: Change this to embed
-					return;
-				}
+				string youtubeUrl = Converter.Convert(videoLink);
 
-				track.Context = Context.User;
+                track = await _audioService.GetTrackAsync(youtubeUrl, SearchMode.YouTube);
+			}
+            else
+            {
+                await ReplyAsync(embed: TrowError("This isn't valid url", "MusicModule/PlayAsync/RegexCheck"));
+            }
 
-				PlayerLoopMode loopMode = PlayerLoopMode.None;
 
-				if (guildSettings.DefaultLoopQueue)
-					loopMode = PlayerLoopMode.Queue;
-				player.LoopMode = loopMode;
+            if (track == null)
+			{
+				await ReplyAsync("😖 No results.");//TODO: Change this to embed
+				return;
+			}
 
-                int position = await player.PlayAsync(track, enqueue: true);
-				await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f).ConfigureAwait(false);
+			track.Context = Context.User;
 
-				if (position == 0)
-				{
-					await Context.Message.ReplyAsync("🔈 Playing: " + track.Uri);//TODO: Change this to embed
-				}
-				else
-				{
-					await Context.Message.ReplyAsync("🔈 Added to queue: " + track.Uri);//TODO: Change this to embed
-				}
+			PlayerLoopMode loopMode = PlayerLoopMode.None;
+
+			if (guildSettings.DefaultLoopQueue)
+				loopMode = PlayerLoopMode.Queue;
+			player.LoopMode = loopMode;
+
+            int position = await player.PlayAsync(track, enqueue: true);
+			await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f).ConfigureAwait(false);
+
+			if (position == 0)
+			{
+				await Context.Message.ReplyAsync("🔈 Playing: " + track.Uri);//TODO: Change this to embed
 			}
 			else
 			{
-				await ReplyAsync(embed: TrowError("This isn't youtube or soundcloud url","MusicModule/PlayAsync/RegexCheck"));
+				await Context.Message.ReplyAsync("🔈 Added to queue: " + track.Uri);//TODO: Change this to embed
 			}
+			
+			
 		}
 
 		[Command("pause")]
