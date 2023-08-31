@@ -86,14 +86,17 @@ namespace hellgate.Modules
 
 			track.Context = Context.User;
 
-			PlayerLoopMode loopMode = PlayerLoopMode.None;
+			PlayerLoopMode loopMode = player.LoopMode;
 
 			if (guildSettings.DefaultLoopQueue)
 				loopMode = PlayerLoopMode.Queue;
 			player.LoopMode = loopMode;
 
             int position = await player.PlayAsync(track, enqueue: true);
-			await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f).ConfigureAwait(false);
+			if(!(player.State is PlayerState.Playing or PlayerState.Paused))
+			{
+				await player.SetVolumeAsync(guildSettings.PlayerVolume / 100f);
+			}
 
 			if (position == 0)
 			{
@@ -152,15 +155,14 @@ namespace hellgate.Modules
                 return;
             }
 
-            string queue = "";
+            string queue = $"`now` {Format.Url(player.CurrentTrack.Title, player.CurrentTrack.Uri!.ToString())}\nAdded by {((SocketUser)player.CurrentTrack.Context!).GlobalName}\n";
 
-			int currentPos = player.Queue.IndexOf(player.CurrentTrack!);
-
-
-			for (int i = currentPos; i <= player.Queue.Count&&i < 10+currentPos; i++)
+			for (int i = 0; i < player.Queue.Count; i++)
 			{
+				if (i > 10)
+					return;
 				LavalinkTrack track = player.Queue[i];
-				queue+= $"`{i}` {track.Author} - {track.Title} | Added by {((SocketUser)track.Context!).GlobalName}\n";
+				queue+= $"`{i}` {Format.Url(track.Title, track.Uri!.ToString())}\nAdded by {((SocketUser)track.Context!).GlobalName}\n";
 			}
 			EmbedBuilder embed = new EmbedBuilder()
 			{
