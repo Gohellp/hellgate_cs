@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace hellgate.Models
@@ -39,7 +40,6 @@ namespace hellgate.Models
         [Required]
         public required string Description { get; set;}
 
-        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-        public DateTime EventHandled { get; set;}
+        public DateTime EventHandled { get; set; } = DateTime.Now;
     }
 }
