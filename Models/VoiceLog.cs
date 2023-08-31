@@ -26,6 +26,10 @@ namespace hellgate.Models
          * leave
          * streamStart
          * streamEnd
+         * muted
+         * defened
+         * serverMuted
+         * serverDefened
          * --mb--
          * activityStart
          * activityEnd
@@ -34,5 +38,8 @@ namespace hellgate.Models
 
         [Required]
         public required string Description { get; set;}
+
+        [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+        public DateTime EventHandled { get; set;}
     }
 }

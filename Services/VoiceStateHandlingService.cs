@@ -151,7 +151,7 @@ namespace hellgate.Services
                     context.SaveChanges();
                 }
             }//Connected
-            else if (oldVoiceState.VoiceChannel is not null && newVoiceState.VoiceChannel is null && oldVoiceState.VoiceChannel.Id != _startChannelId)//Disconnected
+            else if (oldVoiceState.VoiceChannel is not null && oldVoiceState.VoiceChannel.Id != _startChannelId)//Disconnected
             {
                 using (VoiceContext context  = new VoiceContext())
                 {
