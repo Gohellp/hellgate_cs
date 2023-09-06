@@ -141,7 +141,7 @@ namespace hellgate.Modules
 		[Command("queue")]
 		[Alias("q", "list", "список", "с")]
 		[Summary("Sends queue")]
-        public async Task SendQueueAsync()
+        public async Task SendQueueAsync([Summary("The offset from which to start counting the track list")]int offset = 0)
         {
             var player = await GetPlayerAsync();
 
@@ -151,16 +151,19 @@ namespace hellgate.Modules
 			}
             if (player.CurrentTrack == null)
             {
-                await Context.Message.ReplyAsync(embed: TrowError("Queue is empty", "MusicModule/Skip/CurrentTrackIsNull"));
+                await Context.Message.ReplyAsync(embed: TrowError("Queue is empty", "MusicModule/SendQueueAsync/CurrentTrackIsNull"));
                 return;
+            }
+            if (offset > player.Queue.Count | offset < 0)
+            {
+                await Context.Message.DeleteAsync();
+                await ReplyAsync(embed:TrowError("Out of range exception", "MusicModule/SendQueueAsync/OffsetOutOfRangeCheck"));
             }
 
             string queue = $"`now` {Format.Url(player.CurrentTrack.Title, player.CurrentTrack.Uri!.ToString())}\nAdded by {((SocketUser)player.CurrentTrack.Context!).GlobalName}\n";
 
-			for (int i = 0; i < player.Queue.Count; i++)
+			for (int i = offset; i < player.Queue.Count&&i<offset+10; i++)
 			{
-				if (i > 10)
-					return;
 				LavalinkTrack track = player.Queue[i];
 				queue+= $"`{i}` {Format.Url(track.Title, track.Uri!.ToString())}\nAdded by {((SocketUser)track.Context!).GlobalName}\n";
 			}

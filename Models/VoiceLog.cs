@@ -8,7 +8,7 @@ namespace hellgate.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
+        public uint Id { get; set; }
 
         [Required]
         [StringLength(25)]
@@ -27,8 +27,6 @@ namespace hellgate.Models
          * leave
          * streamStart
          * streamEnd
-         * muted
-         * defened
          * serverMuted
          * serverDefened
          * --mb--
